@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Batatinha Frita VAR AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #000; overflow: hidden; font-family: sans-serif; }
+        #videoElement {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; z-index: 1; transform: scaleX(-1); /* Espelhado para selfie, pode mudar */
+        }
+        #motionCanvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 2; pointer-events: none; transform: scaleX(-1);
+        }
+        #uiLayer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; display: flex; flex-direction: column;
+            justify-content: space-between; pointer-events: none;
+        }
+        .interactive { pointer-events: auto; }
+        
+        .status-bar {
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            padding: 15px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .status-green { border-bottom: 5px solid #22c55e; color: #22c55e; }
+        .status-red { border-bottom: 10px solid #ef4444; color: #ef4444; background: rgba(50,0,0,0.8); }
+        
+        .pulse { animation: pulse-anim 1s infinite; }
+        @keyframes pulse-anim { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        /* Animação de eliminação */
+        .eliminated {
+            box-shadow: inset 0 0 50px #ef4444;
+            border: 5px solid red;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Camera Feed -->
+    <video id="videoElement" autoplay playsinline muted></video>
+    <canvas id="motionCanvas"></canvas>
+
+    <!-- Interface -->
+    <div id="uiLayer">
+        <!-- Topo: Status -->
+        <div id="statusBar" class="status-bar status-green flex flex-col items-center">
+            <h1 id="mainTitle" class="text-3xl font-black uppercase tracking-widest drop-shadow-md">BATATINHA FRITA</h1>
+            <div class="text-xs text-white mt-1">Modo Câmera Juiz (VAR)</div>
+        </div>
+
+        <!-- Centro: Mensagens Grandes -->
+        <div id="centerMessage" class="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <h2 id="bigText" class="text-6xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] hidden">CORRA!</h2>
+        </div>
+
+        <!-- Rodapé: Controles -->
+        <div class="p-6 bg-gradient-to-t from-black to-transparent interactive">
+            
+            <!-- Setup Inicial (visível apenas no começo) -->
+            <div id="setupPanel" class="bg-slate-900/90 p-6 rounded-2xl border border-slate-700 text-white mb-4 text-center">
+                <p class="mb-4 text-sm">1. Apoie o celular numa mesa.<br>2. Aponte para as crianças.<br>3. Ajuste a sensibilidade.</p>
+                
+                <div class="mb-4">
+                    <label class="text-xs uppercase text-slate-400">Sensibilidade do Movimento</label>
+                    <input type="range" id="sensitivity" min="10" max="100" value="40" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-yellow-500">
+                    <div class="flex justify-between text-xs text-slate-500 mt-1">
+                        <span>Muito Sensível</span>
+                        <span>Pouco Sensível</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-2 justify-center">
+                    <button id="camToggleBtn" class="bg-slate-700 px-4 py-3 rounded-xl text-white font-bold text-sm">
+                        🔄 Virar Câmera
+                    </button>
+                    <button id="startBtn" class="bg-green-600 px-8 py-3 rounded-xl text-white font-black text-lg shadow-lg animate-pulse">
+                        INICIAR JOGO
+                    </button>
+                </div>
+            </div>
+
+            <!-- Botão de Reset (visível após movimento detectado) -->
+            <button id="resetBtn" class="hidden w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black rounded-xl text-xl shadow-xl">
+                CONTINUAR JOGO
+            </button>
+        </div>
+    </div>
+
+    <!-- Sons invisíveis -->
+    <script>
+        // Configuração
+        const video = document.getElementById('videoElement');
+        const canvas = document.getElementById('motionCanvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const setupPanel = document.getElementById('setupPanel');
+        const statusBar = document.getElementById('statusBar');
+        const mainTitle = document.getElementById('mainTitle');
+        const bigText = document.getElementById('bigText');
+        const sensitivityInput = document.getElementById('sensitivity');
+        const camToggleBtn = document.getElementById('camToggleBtn');
+
+        // Estado do Jogo
+        let gameState = 'IDLE'; // IDLE, GREEN, RED, CAUGHT
+        let facingMode = 'environment'; // 'user' ou 'environment'
+        let synth = window.speechSynthesis;
+        let gameLoopTimeout;
+        
+        // Variáveis de Movimento
+        let prevFrame = null;
+        let motionCheckInterval;
+        let processingCanvas = document.createElement('canvas'); // Canvas menor para performance
+        let procCtx = processingCanvas.getContext('2d', { willReadFrequently: true });
+        // Tamanho de processamento (menor = mais rápido)
+        const procWidth = 160; 
+        const procHeight = 120;
+        processingCanvas.width = procWidth;
+        processingCanvas.height = procHeight;
+
+        // Inicializar Câmera
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: facingMode } 
+                });
+                video.srcObject = stream;
+                
+                // Ajustar espelhamento visual
+                if (facingMode === 'user') {
+                    video.style.transform = "scaleX(-1)";
+                    canvas.style.transform = "scaleX(-1)";
+                } else {
+                    video.style.transform = "scaleX(1)";
+                    canvas.style.transform = "scaleX(1)";
+                }
+
+                // Ajustar canvas overlay ao tamanho da janela
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+
+            } catch (err) {
+                alert("Erro ao acessar câmera: " + err.message);
+            }
+        }
+
+        camToggleBtn.addEventListener('click', () => {
+            facingMode = facingMode === 'user' ? 'environment' : 'user';
+            initCamera();
+        });
+
+        // Loop de Detecção de Movimento
+        function startMotionDetection() {
+            motionCheckInterval = setInterval(() => {
+                if (gameState !== 'RED') {
+                    // Se não estiver na fase vermelha, apenas atualizamos o frame de referência
+                    // para não detectar a mudança repentina de "parado" para "movimento"
+                    procCtx.drawImage(video, 0, 0, procWidth, procHeight);
+                    prevFrame = procCtx.getImageData(0, 0, procWidth, procHeight);
+                    // Limpar desenhos antigos
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    return;
+                }
+
+                // Captura frame atual reduzido
+                procCtx.drawImage(video, 0, 0, procWidth, procHeight);
+                const currentFrame = procCtx.getImageData(0, 0, procWidth, procHeight);
+
+                if (prevFrame) {
+                    detectMotion(prevFrame, currentFrame);
+                }
+                
+                // Salva atual como anterior
+                // O truque aqui é: Se detectou movimento, NÃO atualizamos o prevFrame imediatamente
+                // para garantir que o movimento continue sendo detectado se persistir.
+                // Mas para este jogo, atualizamos para detectar *novos* movimentos.
+                prevFrame = currentFrame; 
+
+            }, 100); // Checa 10 vezes por segundo (bom equilíbrio)
+        }
+
+        function detectMotion(prev, curr) {
+            const length = prev.data.length;
+            const threshold = parseInt(sensitivityInput.value); // Sensibilidade (diferença de cor)
+            // motionThreshold é quantos pixels precisam mudar para disparar
+            const pixelTriggerCount = 20; 
+            
+            let changedPixels = 0;
+            let minX = procWidth, minY = procHeight, maxX = 0, maxY = 0;
+
+            // Loop pelos pixels (pula de 4 em 4 pois é RGBA)
+            for (let i = 0; i < length; i += 4) {
+                const rDiff = Math.abs(prev.data[i] - curr.data[i]);
+                const gDiff = Math.abs(prev.data[i+1] - curr.data[i+1]);
+                const bDiff = Math.abs(prev.data[i+2] - curr.data[i+2]);
+
+                // Se a diferença de cor for maior que a sensibilidade escolhida
+                if (rDiff + gDiff + bDiff > threshold) {
+                    changedPixels++;
+                    
+                    // Calcular coordenadas no canvas original
+                    const pixelIndex = i / 4;
+                    const x = pixelIndex % procWidth;
+                    const y = Math.floor(pixelIndex / procWidth);
+
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+
+            if (changedPixels > pixelTriggerCount) {
+                triggerGameOver(minX, minY, maxX, maxY);
+            }
+        }
+
+        function triggerGameOver(x1, y1, x2, y2) {
+            gameState = 'CAUGHT';
+            
+            // Tocar Alarme
+            speak("Movimento detectado!");
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sawtooth';
+            osc.frequency.value = 150; // Som grave de erro
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
+            osc.stop(audioCtx.currentTime + 0.5);
+
+            // Converter coordenadas do processamento (pequeno) para tela (grande)
+            const scaleX = canvas.width / procWidth;
+            const scaleY = canvas.height / procHeight;
+
+            // Desenhar Retângulo Vermelho no "Culpado"
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 8;
+            ctx.shadowColor = 'red';
+            ctx.shadowBlur = 20;
+            ctx.strokeRect(
+                x1 * scaleX, 
+                y1 * scaleY, 
+                (x2 - x1) * scaleX, 
+                (y2 - y1) * scaleY
+            );
+
+            // UI Feedback
+            statusBar.innerHTML = "<h1 class='text-3xl font-black text-red-500'>MOVIMENTO DETECTADO!</h1>";
+            bigText.innerText = "TE PEGUEI!";
+            bigText.classList.remove('hidden');
+            bigText.classList.add('text-red-600', 'pulse');
+            
+            resetBtn.classList.remove('hidden');
+            setupPanel.classList.add('hidden'); // Garante que setup suma
+        }
+
+        // Lógica de Voz
+        function speak(text, rate = 1.0, callback) {
+            synth.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = 'pt-BR';
+            u.rate = rate;
+            u.onend = callback;
+            synth.speak(u);
+        }
+
+        // Loop do Jogo
+        async function runGameRound() {
+            if (gameState === 'CAUGHT') return;
+
+            // FASE VERDE
+            gameState = 'GREEN';
+            setUIState('GREEN');
+            
+            // Limpa desenhos de movimento anterior
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const delay = Math.random() * 1000 + 1000;
+            
+            gameLoopTimeout = setTimeout(() => {
+                if (gameState === 'CAUGHT') return;
+                
+                // Fala a frase (velocidade varia)
+                const rate = Math.random() < 0.3 ? 2.5 : 1.2; 
+                
+                speak("Batatinha frita, um, dois, três!", rate, () => {
+                    if (gameState === 'CAUGHT') return; // Se pararam no meio da fala
+
+                    // FASE VERMELHA
+                    gameState = 'RED';
+                    setUIState('RED');
+                    
+                    // Tempo de observação (Estátua)
+                    const freezeTime = 3000 + Math.random() * 3000;
+                    
+                    gameLoopTimeout = setTimeout(() => {
+                        if (gameState !== 'CAUGHT') {
+                            runGameRound(); // Ninguém se mexeu, próxima rodada
+                        }
+                    }, freezeTime);
+                });
+
+            }, delay);
+        }
+
+        function setUIState(state) {
+            if (state === 'GREEN') {
+                statusBar.className = "status-bar status-green w-full";
+                mainTitle.innerText = "PODEM ANDAR";
+                mainTitle.classList.remove('text-red-500');
+                mainTitle.classList.add('text-green-500');
+                bigText.classList.add('hidden');
+            } else if (state === 'RED') {
+                statusBar.className = "status-bar status-red w-full animate-pulse";
+                mainTitle.innerText = "ESTÁTUA!!!";
+                mainTitle.classList.remove('text-green-500');
+                mainTitle.classList.add('text-white');
+                // Flash na tela para indicar momento da captura
+                canvas.style.opacity = 0.5;
+                setTimeout(() => canvas.style.opacity = 1, 100);
+            }
+        }
+
+        // Event Listeners
+        startBtn.addEventListener('click', () => {
+            // Inicializar áudio context (exigência mobile)
+            speak("O jogo vai começar. Preparem-se.");
+            setupPanel.classList.add('hidden');
+            setTimeout(runGameRound, 2000);
+        });
+
+        resetBtn.addEventListener('click', () => {
+            resetBtn.classList.add('hidden');
+            bigText.classList.add('hidden');
+            // Limpar retângulo
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            runGameRound();
+        });
+
+        // Iniciar
+        initCamera();
+        startMotionDetection(); // Começa a processar vídeo, mas só alerta se gameState == RED
+
+    </script>
+</body>
+</html>
+
