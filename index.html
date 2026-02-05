@@ -3,44 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Batatinha Frita VAR</title>
+    <title>Batatinha Frita VAR - Melhorado</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background: #000; overflow: hidden; font-family: sans-serif; touch-action: none; user-select: none; -webkit-user-select: none; }
+        body { 
+            background: #000; 
+            overflow: hidden; 
+            font-family: sans-serif; 
+            touch-action: none; 
+            user-select: none; 
+            -webkit-user-select: none; 
+        }
         
-        #container { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+        #container { 
+            position: relative; 
+            width: 100vw; 
+            height: 100vh; 
+            overflow: hidden; 
+        }
         
         #videoElement {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            object-fit: cover; z-index: 1; transform: scaleX(1); /* Padrão traseira */
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%;
+            object-fit: cover; 
+            z-index: 1; 
+            transform: scaleX(1);
         }
         
         #motionCanvas {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 2; pointer-events: none; transform: scaleX(1);
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%;
+            z-index: 2; 
+            pointer-events: none; 
+            transform: scaleX(1);
         }
 
         #uiLayer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 10; display: flex; flex-direction: column;
-            justify-content: space-between; pointer-events: none;
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%;
+            z-index: 10; 
+            display: flex; 
+            flex-direction: column;
+            justify-content: space-between; 
+            pointer-events: none;
         }
+        
         .interactive { pointer-events: auto; }
         
         .status-bar {
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(5px);
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
             padding: 15px;
             text-align: center;
             border-bottom: 4px solid #333;
-            transition: background-color 0.3s;
+            transition: all 0.3s ease;
         }
 
-        .pulse { animation: pulse-anim 1s infinite; }
-        @keyframes pulse-anim { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        .pulse { 
+            animation: pulse-anim 1s infinite; 
+        }
+        
+        @keyframes pulse-anim { 
+            0%, 100% { opacity: 1; transform: scale(1); } 
+            50% { opacity: 0.7; transform: scale(1.05); } 
+        }
 
-        /* Estilos específicos para quando pega alguém */
-        .caught-bg { background-color: rgba(220, 38, 38, 0.8) !important; border-bottom-color: #991b1b !important; }
+        .caught-bg { 
+            background-color: rgba(220, 38, 38, 0.9) !important; 
+            border-bottom-color: #991b1b !important; 
+        }
+        
+        .shake {
+            animation: shake-anim 0.5s;
+        }
+        
+        @keyframes shake-anim {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+
+        /* Loading spinner para calibração */
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -56,13 +123,23 @@
             <h1 id="statusTitle" class="text-2xl font-black text-white tracking-widest uppercase drop-shadow-md">
                 VAR SYSTEM
             </h1>
-            <p id="statusSub" class="text-xs text-gray-300 font-bold">Aguardando Início...</p>
+            <p id="statusSub" class="text-xs text-gray-300 font-bold mt-1">Aguardando Início...</p>
         </div>
 
         <!-- Mensagem Central -->
         <div id="centerMsg" class="flex items-center justify-center h-full hidden">
-            <div class="bg-black/60 p-6 rounded-2xl border-4 border-red-600 pulse backdrop-blur-sm">
-                <h2 class="text-5xl md:text-7xl font-black text-red-500 text-center">TE PEGUEI!</h2>
+            <div class="bg-black/80 p-8 rounded-2xl border-4 border-red-600 pulse backdrop-blur-sm shake">
+                <h2 class="text-5xl md:text-7xl font-black text-red-500 text-center mb-2">TE PEGUEI!</h2>
+                <p class="text-white text-center text-lg">Você se mexeu! 😱</p>
+            </div>
+        </div>
+
+        <!-- Mensagem de Calibração -->
+        <div id="calibratingMsg" class="flex items-center justify-center h-full hidden">
+            <div class="bg-black/80 p-8 rounded-2xl border-2 border-blue-500 backdrop-blur-sm text-center">
+                <div class="spinner mx-auto mb-4"></div>
+                <h2 class="text-2xl font-bold text-blue-400 mb-2">Calibrando Câmera...</h2>
+                <p class="text-white text-sm">Aguarde alguns segundos</p>
             </div>
         </div>
 
@@ -74,12 +151,24 @@
                 <div class="bg-slate-800/90 p-4 rounded-xl border border-slate-600 shadow-xl">
                     <div class="flex justify-between items-center mb-2">
                         <label class="text-xs text-yellow-400 font-bold uppercase">Sensibilidade do Juiz</label>
-                        <span id="sensValue" class="text-xs text-white bg-slate-700 px-2 py-1 rounded">Normal</span>
+                        <span id="sensValue" class="text-xs text-white bg-slate-700 px-3 py-1 rounded-full">Normal</span>
                     </div>
-                    <input type="range" id="sensitivity" min="10" max="90" value="35" class="w-full h-4 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-yellow-500">
+                    <input type="range" id="sensitivity" min="1" max="5" value="3" step="1" class="w-full h-4 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-yellow-500">
                     <div class="flex justify-between text-[10px] text-gray-400 mt-1">
-                        <span>Relex</span>
-                        <span>Rigoroso</span>
+                        <span>😌 Relax</span>
+                        <span>😤 Rigoroso</span>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800/90 p-4 rounded-xl border border-slate-600 shadow-xl">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="text-xs text-purple-400 font-bold uppercase">Tempo Congelado</label>
+                        <span id="freezeValue" class="text-xs text-white bg-slate-700 px-3 py-1 rounded-full">Médio</span>
+                    </div>
+                    <input type="range" id="freezeTime" min="1" max="5" value="3" step="1" class="w-full h-4 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-purple-500">
+                    <div class="flex justify-between text-[10px] text-gray-400 mt-1">
+                        <span>⚡ Rápido</span>
+                        <span>🐌 Longo</span>
                     </div>
                 </div>
 
@@ -92,60 +181,108 @@
                     </button>
                 </div>
 
-                <button id="startBtn" class="w-full bg-green-600 hover:bg-green-500 text-white text-2xl font-black py-5 rounded-xl shadow-lg active:scale-95 transition border-b-4 border-green-800 animate-bounce">
-                    INICIAR JOGO
+                <button id="startBtn" class="w-full bg-green-600 hover:bg-green-500 text-white text-2xl font-black py-6 rounded-xl shadow-lg active:scale-95 transition border-b-4 border-green-800 animate-bounce">
+                    ▶️ INICIAR JOGO
                 </button>
             </div>
 
             <!-- Botão de Continuar (Só aparece ao perder) -->
-            <button id="resetBtn" class="hidden w-full bg-yellow-500 hover:bg-yellow-400 text-black text-2xl font-black py-5 rounded-xl shadow-lg active:scale-95 transition border-b-4 border-yellow-700">
-                CONTINUAR
+            <button id="resetBtn" class="hidden w-full bg-yellow-500 hover:bg-yellow-400 text-black text-2xl font-black py-6 rounded-xl shadow-lg active:scale-95 transition border-b-4 border-yellow-700">
+                🔁 CONTINUAR
             </button>
         </div>
     </div>
 
     <script>
-        // Elementos
+        // Elementos DOM
         const video = document.getElementById('videoElement');
         const canvas = document.getElementById('motionCanvas');
         const ctx = canvas.getContext('2d');
         const sensitivityInput = document.getElementById('sensitivity');
         const sensValueSpan = document.getElementById('sensValue');
+        const freezeTimeInput = document.getElementById('freezeTime');
+        const freezeValueSpan = document.getElementById('freezeValue');
         
         // UI
         const statusBar = document.getElementById('statusBar');
         const statusTitle = document.getElementById('statusTitle');
         const statusSub = document.getElementById('statusSub');
         const centerMsg = document.getElementById('centerMsg');
+        const calibratingMsg = document.getElementById('calibratingMsg');
         const controlsPanel = document.getElementById('controlsPanel');
         const startBtn = document.getElementById('startBtn');
         const resetBtn = document.getElementById('resetBtn');
         const camSwitchBtn = document.getElementById('camSwitchBtn');
         const mirrorBtn = document.getElementById('mirrorBtn');
 
-        // Estado
+        // Estado do jogo
         let state = {
             running: false,
-            phase: 'IDLE', // IDLE, GREEN, RED, CAUGHT
-            facingMode: 'environment', // Traseira por padrão
+            phase: 'IDLE', // IDLE, GREEN, RED, CAUGHT, CALIBRATING
+            facingMode: 'environment',
             isMirrored: false,
-            stream: null
+            stream: null,
+            isCalibrated: false,
+            calibrationFrames: 0
+        };
+
+        // Configurações de sensibilidade (melhoradas)
+        const SENSITIVITY_LEVELS = {
+            1: { threshold: 45, minPixels: 50, name: "Muito Relax" },
+            2: { threshold: 35, minPixels: 35, name: "Relax" },
+            3: { threshold: 25, minPixels: 25, name: "Normal" },
+            4: { threshold: 18, minPixels: 18, name: "Rigoroso" },
+            5: { threshold: 12, minPixels: 12, name: "Muito Rigoroso" }
+        };
+
+        const FREEZE_TIMES = {
+            1: { min: 2000, max: 3000, name: "Muito Rápido" },
+            2: { min: 2500, max: 4000, name: "Rápido" },
+            3: { min: 3000, max: 5000, name: "Médio" },
+            4: { min: 4000, max: 6500, name: "Longo" },
+            5: { min: 5000, max: 8000, name: "Muito Longo" }
         };
 
         // Áudio e Voz
         let synth = window.speechSynthesis;
-        let audioCtx; 
+        let audioCtx;
+        let selectedVoice = null;
 
-        // Processamento de Imagem (Baixa res para performance no mobile)
+        // Processamento de movimento otimizado
         let processingCanvas = document.createElement('canvas');
         let procCtx = processingCanvas.getContext('2d', { willReadFrequently: true });
-        const PROC_W = 100; 
-        const PROC_H = 75;
+        const PROC_W = 120; // Aumentado levemente para melhor detecção
+        const PROC_H = 90;
         processingCanvas.width = PROC_W;
         processingCanvas.height = PROC_H;
+        
         let prevFrameData = null;
+        let motionHistory = []; // Histórico para suavizar detecção
+        const MOTION_HISTORY_SIZE = 3;
 
-        // --- 1. Câmera ---
+        // --- INICIALIZAÇÃO DE ÁUDIO ---
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            
+            // Carrega vozes disponíveis
+            const voices = synth.getVoices();
+            selectedVoice = voices.find(v => v.lang.startsWith('pt')) || voices[0];
+        }
+
+        // Garantir que vozes estejam carregadas
+        if (synth.onvoiceschanged !== undefined) {
+            synth.onvoiceschanged = () => {
+                const voices = synth.getVoices();
+                selectedVoice = voices.find(v => v.lang.startsWith('pt')) || voices[0];
+            };
+        }
+
+        // --- CÂMERA ---
         async function startCamera() {
             if (state.stream) {
                 state.stream.getTracks().forEach(track => track.stop());
@@ -164,14 +301,26 @@
                 state.stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = state.stream;
                 
-                // Auto-ajuste de espelhamento se for frontal
-                if (state.facingMode === 'user') {
+                // Aguarda vídeo carregar
+                await new Promise(resolve => {
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        resolve();
+                    };
+                });
+
+                // Auto-espelhamento para câmera frontal
+                if (state.facingMode === 'user' && !state.isMirrored) {
                     setMirror(true);
-                } else {
-                    setMirror(false);
                 }
+
+                // Calibração inicial
+                state.isCalibrated = false;
+                state.calibrationFrames = 0;
+                
             } catch (err) {
-                alert("Erro na câmera: " + err.message + ". Verifique permissões e HTTPS.");
+                alert("❌ Erro na câmera: " + err.message + "\n\nVerifique:\n- Permissões de câmera\n- Conexão HTTPS\n- Câmera não está em uso");
+                console.error(err);
             }
         }
 
@@ -182,13 +331,26 @@
             canvas.style.transform = transform;
         }
 
-        // --- 2. Detector de Movimento ---
+        // --- DETECÇÃO DE MOVIMENTO MELHORADA ---
         function detectMotion() {
+            // Calibração inicial (primeiros 30 frames)
+            if (!state.isCalibrated) {
+                if (state.calibrationFrames < 30) {
+                    procCtx.drawImage(video, 0, 0, PROC_W, PROC_H);
+                    prevFrameData = procCtx.getImageData(0, 0, PROC_W, PROC_H);
+                    state.calibrationFrames++;
+                    return;
+                } else {
+                    state.isCalibrated = true;
+                }
+            }
+
+            // Só detecta movimento quando em fase RED
             if (state.phase !== 'RED') {
-                // Atualiza referência silenciosamente
                 procCtx.drawImage(video, 0, 0, PROC_W, PROC_H);
                 prevFrameData = procCtx.getImageData(0, 0, PROC_W, PROC_H);
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                motionHistory = []; // Limpa histórico
                 return;
             }
 
@@ -200,19 +362,28 @@
                 return;
             }
 
-            // Lógica de Comparação
-            const threshold = 100 - parseInt(sensitivityInput.value); 
+            // Pega configurações atuais
+            const level = SENSITIVITY_LEVELS[sensitivityInput.value];
+            const threshold = level.threshold;
+            const minPixels = level.minPixels;
+
             let changedPixels = 0;
             let minX = PROC_W, minY = PROC_H, maxX = 0, maxY = 0;
+            let totalDiff = 0;
 
             const length = currentFrameData.data.length;
+            
             for (let i = 0; i < length; i += 4) {
                 const rDiff = Math.abs(currentFrameData.data[i] - prevFrameData.data[i]);
                 const gDiff = Math.abs(currentFrameData.data[i+1] - prevFrameData.data[i+1]);
                 const bDiff = Math.abs(currentFrameData.data[i+2] - prevFrameData.data[i+2]);
-
-                if ((rDiff + gDiff + bDiff) > threshold) {
+                
+                const pixelDiff = rDiff + gDiff + bDiff;
+                
+                if (pixelDiff > threshold) {
                     changedPixels++;
+                    totalDiff += pixelDiff;
+                    
                     const pixelIdx = i / 4;
                     const x = pixelIdx % PROC_W;
                     const y = Math.floor(pixelIdx / PROC_W);
@@ -224,109 +395,157 @@
                 }
             }
 
-            // Gatilho de movimento
-            if (changedPixels > 15) { // Tolerância mínima
-                triggerCaught(minX, minY, maxX, maxY);
+            // Adiciona ao histórico
+            motionHistory.push(changedPixels);
+            if (motionHistory.length > MOTION_HISTORY_SIZE) {
+                motionHistory.shift();
             }
 
-            // Atualiza frame anterior para capturar movimento contínuo
+            // Calcula média do histórico (suavização)
+            const avgMotion = motionHistory.reduce((a, b) => a + b, 0) / motionHistory.length;
+
+            // Trigger melhorado: movimento consistente
+            if (avgMotion > minPixels && changedPixels > minPixels) {
+                const intensity = Math.min(totalDiff / (changedPixels * 100), 1);
+                triggerCaught(minX, minY, maxX, maxY, intensity);
+            }
+
             prevFrameData = currentFrameData;
         }
 
-        function triggerCaught(x1, y1, x2, y2) {
+        function triggerCaught(x1, y1, x2, y2, intensity) {
             state.phase = 'CAUGHT';
-            state.running = false; // Pausa lógica do jogo
+            state.running = false;
             
-            // Desenha retângulo
+            // Desenha retângulo com intensidade visual
             const scaleX = canvas.width / PROC_W;
             const scaleY = canvas.height / PROC_H;
 
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 6;
-            ctx.shadowColor = 'red';
-            ctx.shadowBlur = 20;
-            ctx.strokeRect(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Múltiplos retângulos para efeito de destaque
+            for (let i = 0; i < 3; i++) {
+                ctx.strokeStyle = `rgba(239, 68, 68, ${1 - i * 0.3})`;
+                ctx.lineWidth = 8 - i * 2;
+                ctx.shadowColor = 'red';
+                ctx.shadowBlur = 20 + i * 10;
+                
+                const padding = i * 10;
+                ctx.strokeRect(
+                    Math.max(0, x1 * scaleX - padding), 
+                    Math.max(0, y1 * scaleY - padding), 
+                    Math.min(canvas.width, (x2 - x1) * scaleX + padding * 2), 
+                    Math.min(canvas.height, (y2 - y1) * scaleY + padding * 2)
+                );
+            }
 
-            // Alarme e Voz
-            playAlarm();
-            speak("Movimento detectado!");
+            // Som e voz
+            playAlarm(intensity);
+            
+            const messages = [
+                "Te peguei!",
+                "Você mexeu!",
+                "Flagrado!",
+                "Vi você se mexendo!",
+                "Não pode se mexer!"
+            ];
+            const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+            speak(randomMsg, 1.4);
 
             // UI
             statusBar.classList.add('caught-bg');
-            statusTitle.innerText = "MOVIMENTO!";
+            statusTitle.innerText = "🚨 MOVIMENTO DETECTADO!";
+            statusSub.innerText = "Você foi pego!";
             centerMsg.classList.remove('hidden');
             resetBtn.classList.remove('hidden');
             controlsPanel.classList.add('hidden');
         }
 
-        // --- 3. Lógica do Jogo ---
+        // --- LÓGICA DO JOGO ---
         function startGameLoop() {
             if (!state.running) return;
 
             state.phase = 'GREEN';
             updateUI('GREEN');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            motionHistory = [];
 
-            // Delay aleatório antes de falar
+            // Delay antes de falar (1-2.5s)
+            const initialDelay = 1000 + Math.random() * 1500;
+            
             setTimeout(() => {
                 if (!state.running) return;
                 
-                const rate = Math.random() > 0.4 ? 1.3 : 2.5; // Varia velocidade
-                speak("Batatinha frita, um, dois, três!", rate, () => {
+                // Varia velocidade da fala
+                const speechRate = Math.random() > 0.5 ? 1.2 : 2.0;
+                
+                speak("Batatinha frita, um, dois, três!", speechRate, () => {
                     if (!state.running) return;
                     
                     state.phase = 'RED';
                     updateUI('RED');
                     
-                    // Tempo de Estátua (3 a 6 segundos)
-                    const freezeTime = 3000 + (Math.random() * 3000);
+                    // Tempo de congelamento baseado na configuração
+                    const freezeConfig = FREEZE_TIMES[freezeTimeInput.value];
+                    const freezeTime = freezeConfig.min + Math.random() * (freezeConfig.max - freezeConfig.min);
                     
                     setTimeout(() => {
-                        if (state.phase === 'RED') {
-                            startGameLoop(); // Ninguém pego, segue o jogo
+                        if (state.phase === 'RED' && state.running) {
+                            // Passou! Começa novo ciclo
+                            ctx.clearRect(0, 0, canvas.width, canvas.height);
+                            startGameLoop();
                         }
                     }, freezeTime);
                 });
 
-            }, 1500 + Math.random() * 1000);
+            }, initialDelay);
         }
 
-        // --- 4. Helpers ---
-        function initAudio() {
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            
-            // Tenta forçar carregamento de vozes
-            const voices = synth.getVoices();
-        }
-
+        // --- HELPERS DE ÁUDIO ---
         function speak(text, rate = 1.0, callback) {
             synth.cancel();
-            const u = new SpeechSynthesisUtterance(text);
-            u.lang = 'pt-BR';
-            u.rate = rate;
-            u.pitch = 1.1; // Tom levemente agudo para ficar mais divertido
-            u.onend = callback;
-            synth.speak(u);
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'pt-BR';
+            utterance.rate = rate;
+            utterance.pitch = 1.15;
+            utterance.volume = 1.0;
+            
+            if (selectedVoice) {
+                utterance.voice = selectedVoice;
+            }
+            
+            if (callback) {
+                utterance.onend = callback;
+            }
+            
+            synth.speak(utterance);
         }
 
-        function playAlarm() {
+        function playAlarm(intensity = 0.5) {
             if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
             
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(220, audioCtx.currentTime);
-            osc.frequency.linearRampToValueAtTime(880, audioCtx.currentTime + 0.1); // Sirene subindo
-            osc.frequency.linearRampToValueAtTime(220, audioCtx.currentTime + 0.3); // Sirene descendo
-            
-            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.8);
-            
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.8);
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                osc.type = 'sawtooth';
+                const baseFreq = 200 + intensity * 100;
+                
+                osc.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(baseFreq * 3, audioCtx.currentTime + 0.15);
+                osc.frequency.linearRampToValueAtTime(baseFreq, audioCtx.currentTime + 0.35);
+                
+                const volume = 0.4 + intensity * 0.3;
+                gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.8);
+                
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.8);
+            } catch (err) {
+                console.warn('Erro ao reproduzir alarme:', err);
+            }
         }
 
         function updateUI(phase) {
@@ -334,63 +553,99 @@
             
             if (phase === 'GREEN') {
                 statusBar.style.borderBottomColor = '#22c55e';
-                statusTitle.innerText = "PODEM CORRER 🏃";
+                statusTitle.innerText = "🟢 PODEM CORRER!";
                 statusTitle.style.color = "#22c55e";
-                statusSub.innerText = "Atenção ao mestre...";
+                statusSub.innerText = "Corra enquanto pode...";
             } else if (phase === 'RED') {
                 statusBar.style.borderBottomColor = '#ef4444';
-                statusTitle.innerText = "ESTÁTUA! 🛑";
+                statusTitle.innerText = "🔴 ESTÁTUA!";
                 statusTitle.style.color = "#ef4444";
-                statusSub.innerText = "Não se mova!";
+                statusSub.innerText = "Não se mova nem um milímetro!";
                 
-                // Efeito visual de flash
-                canvas.style.backgroundColor = 'rgba(255,0,0,0.1)';
-                setTimeout(() => canvas.style.backgroundColor = 'transparent', 200);
+                // Flash visual
+                canvas.style.backgroundColor = 'rgba(255, 0, 0, 0.15)';
+                setTimeout(() => canvas.style.backgroundColor = 'transparent', 250);
             }
         }
 
-        // Listeners
+        // --- EVENT LISTENERS ---
         sensitivityInput.addEventListener('input', (e) => {
-            const val = e.target.value;
-            sensValueSpan.innerText = val > 60 ? "Rigoroso" : val < 30 ? "Relax" : "Normal";
+            const level = SENSITIVITY_LEVELS[e.target.value];
+            sensValueSpan.innerText = level.name;
+        });
+
+        freezeTimeInput.addEventListener('input', (e) => {
+            const config = FREEZE_TIMES[e.target.value];
+            freezeValueSpan.innerText = config.name;
         });
         
-        camSwitchBtn.addEventListener('click', () => {
+        camSwitchBtn.addEventListener('click', async () => {
+            camSwitchBtn.disabled = true;
             state.facingMode = state.facingMode === 'user' ? 'environment' : 'user';
-            startCamera();
+            await startCamera();
+            camSwitchBtn.disabled = false;
         });
 
-        mirrorBtn.addEventListener('click', () => setMirror(!state.isMirrored));
+        mirrorBtn.addEventListener('click', () => {
+            setMirror(!state.isMirrored);
+        });
 
         startBtn.addEventListener('click', () => {
-            initAudio(); // Importante para desbloquear som no celular
-            state.running = true;
-            controlsPanel.classList.add('hidden');
-            speak("Atenção jogadores. O jogo vai começar.");
-            setTimeout(startGameLoop, 2000);
+            // Mostra calibrando
+            calibratingMsg.classList.remove('hidden');
+            
+            initAudio();
+            
+            // Aguarda calibração
+            setTimeout(() => {
+                calibratingMsg.classList.add('hidden');
+                state.running = true;
+                controlsPanel.classList.add('hidden');
+                
+                speak("Atenção, jogadores! O jogo vai começar em 3 segundos.", 1.0, () => {
+                    setTimeout(() => {
+                        if (state.running) startGameLoop();
+                    }, 1000);
+                });
+            }, 2500);
         });
 
         resetBtn.addEventListener('click', () => {
             centerMsg.classList.add('hidden');
             resetBtn.classList.add('hidden');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            statusBar.classList.remove('caught-bg');
+            
             state.running = true;
-            startGameLoop();
+            state.phase = 'IDLE';
+            motionHistory = [];
+            
+            speak("Mais uma chance! Preparar...", 1.0, () => {
+                setTimeout(() => {
+                    if (state.running) startGameLoop();
+                }, 1000);
+            });
         });
 
-        window.addEventListener('resize', () => {
+        // Redimensionamento
+        function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-        });
-        
-        // Início automático
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- INICIALIZAÇÃO ---
+        resizeCanvas();
         startCamera();
+        
+        // Loop de detecção (100ms = 10 FPS, bom balanço performance/precisão)
         setInterval(detectMotion, 100);
+
+        // Inicializa labels
+        sensValueSpan.innerText = SENSITIVITY_LEVELS[3].name;
+        freezeValueSpan.innerText = FREEZE_TIMES[3].name;
 
     </script>
 </body>
 </html>
-
-
